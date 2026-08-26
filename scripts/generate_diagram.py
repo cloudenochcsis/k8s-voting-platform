@@ -1,0 +1,146 @@
+#!/usr/bin/env python3
+"""
+Generates the Draw.io architecture diagram file (docs/architecture.drawio)
+and direct browser URL for the Kubernetes Multi-Cloud Voting Platform.
+"""
+
+import os
+import zlib
+import base64
+import urllib.parse
+
+DIAGRAM_XML = """<mxfile host="app.diagrams.net" modified="2026-08-26T15:00:00.000Z" agent="DrawIO MCP" version="24.0.0" type="device">
+  <diagram id="voting-architecture" name="Kubernetes Multi-Cloud Voting Architecture">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- User / Browser -->
+        <mxCell id="user" value="10,000+ Concurrent Students (Voters)" style="shape=actor;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="680" y="40" width="80" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Frontend -->
+        <mxCell id="frontend" value="Frontend (SPA / Nginx)&#xa;Port 80 / 8080" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="620" y="160" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Ingress Controllers -->
+        <mxCell id="ingress" value="Kubernetes Ingress (spec.ingressClassName)&#xa;[ AWS ALB | GCE Ingress | Azure App Gateway ]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="540" y="260" width="360" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- eligibility-api -->
+        <mxCell id="eligibility" value="eligibility-api&#xa;(FastAPI - Port 8001)&#xa;Verifies Student ID &amp; Issues JWT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="380" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- vote-api -->
+        <mxCell id="vote_api" value="vote-api&#xa;(FastAPI - Port 8002)&#xa;Validates JWT &amp; Fast-Fail SETNX" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="610" y="380" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- results-api -->
+        <mxCell id="results_api" value="results-api &amp; reveal-gate&#xa;(FastAPI - Port 8003 &amp; CronJob)&#xa;Confidential Tallies &amp; Reveal Flag" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="380" width="230" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Redis Streams -->
+        <mxCell id="redis" value="Redis 7 (vote_stream)&#xa;Fast-Fail Distributed Locks &amp;&#xa;Consumer Groups (vote_workers)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="625" y="500" width="190" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- worker -->
+        <mxCell id="worker" value="worker Pods (Daemon Consumer)&#xa;xreadgroup + Atomic SQL Tx" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="605" y="640" width="230" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- PostgreSQL Database -->
+        <mxCell id="db_group" value="PostgreSQL 16 (voting_db) - StatefulSet / Cloud Managed" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;startSize=23;" vertex="1" parent="1">
+          <mxGeometry x="320" y="740" width="810" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="table_voter" value="voter_roll Table&#xa;- student_id (PK)&#xa;- has_voted (BOOLEAN)&#xa;- voted_at (TIMESTAMP)&#xa;(Turnout Tracker - NO Ballot Info)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="db_group">
+          <mxGeometry x="30" y="40" width="220" height="110" as="geometry" />
+        </mxCell>
+
+        <mxCell id="table_ballots" value="ballots Table&#xa;- id (PK SERIAL)&#xa;- candidate_choice (VARCHAR)&#xa;- cast_at (TIMESTAMP)&#xa;(Ballot Secrecy - NO Student ID)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="db_group">
+          <mxGeometry x="300" y="40" width="220" height="110" as="geometry" />
+        </mxCell>
+
+        <mxCell id="table_state" value="election_state Table&#xa;- id (PK = 1)&#xa;- revealed (BOOLEAN)&#xa;- revealed_at (TIMESTAMP)&#xa;(Reveal Gate Flag)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="db_group">
+          <mxGeometry x="560" y="40" width="220" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Connectors -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" source="user" target="frontend" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" source="frontend" target="ingress" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="/eligibility" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" source="ingress" target="eligibility" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="/vote" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" source="ingress" target="vote_api" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="/results" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" source="ingress" target="results_api" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e6" value="1. Check has_voted" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" source="eligibility" target="table_voter" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e7" value="2. SETNX Lock &amp; Enqueue" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" source="vote_api" target="redis" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e8" value="3. xreadgroup" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" source="redis" target="worker" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e9" value="4. Atomic UPDATE voter_roll" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" source="worker" target="table_voter" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="700" y="720" />
+              <mxPoint x="460" y="720" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e10" value="5. INSERT Anonymous Ballot" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" source="worker" target="table_ballots" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e11" value="Query Tallies &amp; Flip Flag" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" source="results_api" target="table_state" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1015" y="680" />
+              <mxPoint x="990" y="680" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>"""
+
+def export_drawio():
+    output_path = "docs/architecture.drawio"
+    with open(output_path, "w") as f:
+        f.write(DIAGRAM_XML)
+    print(f"✓ Created Draw.io file: {output_path}")
+
+    # Generate compressed raw URL
+    comp = zlib.compressobj(level=9, wbits=-15)
+    deflated = comp.compress(DIAGRAM_XML.encode("utf-8")) + comp.flush()
+    encoded = base64.b64encode(deflated).decode("utf-8")
+    url = f"https://app.diagrams.net/#R{urllib.parse.quote(encoded)}"
+    print(f"\nDirect Draw.io Browser Link:\n{url}\n")
+
+if __name__ == "__main__":
+    export_drawio()
