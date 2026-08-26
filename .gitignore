@@ -36,3 +36,7 @@ node_modules/
 dist/
 build/
 .npm
+
+# IDEs
+.vscode/
+.idea/
