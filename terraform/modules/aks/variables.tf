@@ -4,6 +4,12 @@ variable "resource_group_name" {
   default     = "student-voting-rg"
 }
 
+variable "kubernetes_version" {
+  description = "Kubernetes version for the AKS cluster"
+  type        = string
+  default     = "1.35"
+}
+
 variable "location" {
   description = "Azure region"
   type        = string

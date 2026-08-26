@@ -4,6 +4,12 @@ variable "cluster_name" {
   default     = "student-voting-eks"
 }
 
+variable "kubernetes_version" {
+  description = "Kubernetes version for the EKS cluster"
+  type        = string
+  default     = "1.35"
+}
+
 variable "aws_region" {
   description = "AWS region"
   type        = string

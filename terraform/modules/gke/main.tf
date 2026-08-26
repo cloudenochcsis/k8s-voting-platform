@@ -46,6 +46,8 @@ resource "google_container_cluster" "primary" {
 
   deletion_protection = false
 
+  min_master_version = var.kubernetes_version
+
   release_channel {
     channel = "REGULAR"
   }

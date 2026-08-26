@@ -3,6 +3,12 @@ variable "project_id" {
   type        = string
 }
 
+variable "kubernetes_version" {
+  description = "Minimum master Kubernetes version for GKE cluster"
+  type        = string
+  default     = "1.35"
+}
+
 variable "region" {
   description = "GCP Region"
   type        = string

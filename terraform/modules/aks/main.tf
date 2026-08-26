@@ -24,6 +24,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   dns_prefix          = var.cluster_name
+  kubernetes_version  = var.kubernetes_version
 
   oidc_issuer_enabled       = true
   workload_identity_enabled = true

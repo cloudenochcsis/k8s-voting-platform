@@ -42,7 +42,7 @@ The system is partitioned into decoupled microservices communicating asynchronou
 | Queue / Cache | Redis 7 | Redis Streams with Consumer Groups (`xreadgroup`) and atomic locks (`SETNX`) |
 | Database | PostgreSQL 16 | ACID-compliant relational storage with separate identity and ballot tables |
 | Containerization | Docker & Multi-stage builds | Minimal container images running unprivileged processes |
-| Kubernetes | K8s 1.30+ / Kustomize | Base manifests with overlays for EKS, GKE, and AKS |
+| Kubernetes | K8s 1.35+ / Kustomize | Base manifests with overlays for EKS, GKE, and AKS |
 | Infrastructure as Code | Terraform (HashiCorp) | Modular IaC for AWS, GCP, and Azure environments |
 | GitOps | ArgoCD | Declarative application definitions targeting cloud overlays |
 | CI/CD | CircleCI | Automated linting, logic testing, and container build/push pipelines |
