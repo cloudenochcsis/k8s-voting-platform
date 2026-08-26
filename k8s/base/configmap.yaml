@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: voting-config
+  namespace: voting
+data:
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  REDIS_STREAM: "vote_stream"
+  REDIS_GROUP: "vote_workers"
+  JWT_EXP_SECONDS: "900"

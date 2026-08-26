@@ -1,0 +1,47 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: voting-ingress
+  namespace: voting
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /eligibility
+        pathType: Prefix
+        backend:
+          service:
+            name: eligibility-api
+            port:
+              number: 8001
+      - path: /vote
+        pathType: Prefix
+        backend:
+          service:
+            name: vote-api
+            port:
+              number: 8002
+      - path: /results
+        pathType: Prefix
+        backend:
+          service:
+            name: results-api
+            port:
+              number: 8003
+      - path: /admin
+        pathType: Prefix
+        backend:
+          service:
+            name: results-api
+            port:
+              number: 8003
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80

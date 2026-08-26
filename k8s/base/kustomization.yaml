@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: voting
+
+resources:
+  - rbac.yaml
+  - configmap.yaml
+  - secrets.yaml
+  - deployments/redis.yaml
+  - deployments/eligibility-api.yaml
+  - deployments/vote-api.yaml
+  - deployments/worker.yaml
+  - deployments/results-api.yaml
+  - deployments/frontend.yaml
+  - statefulsets/postgres.yaml
+  - ingress.yaml
+  - hpa.yaml
+  - network-policies.yaml
+  - cronjob-reveal.yaml

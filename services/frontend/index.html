@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Council Election 2026</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --success: #16a34a;
+      --error: #dc2626;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 2rem 1rem; min-height: 100vh; display: flex; justify-content: center; }
+    .container { width: 100%; max-width: 680px; }
+    header { text-align: center; margin-bottom: 2rem; }
+    header h1 { font-size: 1.8rem; font-weight: 800; color: #1e293b; margin-bottom: 0.4rem; }
+    header p { color: var(--text-muted); font-size: 0.95rem; }
+    .nav-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border); }
+    .tab-btn { background: none; border: none; padding: 0.75rem 1.25rem; font-size: 1rem; font-weight: 600; color: var(--text-muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .card { background: var(--card-bg); border-radius: var(--radius); padding: 2rem; border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+    .card h2 { font-size: 1.3rem; margin-bottom: 1rem; color: #1e293b; }
+    .alert { padding: 0.9rem 1.2rem; border-radius: 8px; font-size: 0.9rem; margin-bottom: 1.2rem; display: none; }
+    .alert-error { background-color: #fef2f2; color: var(--error); border: 1px solid #fecaca; }
+    .alert-success { background-color: #f0fdf4; color: var(--success); border: 1px solid #bbf7d0; }
+    .form-group { margin-bottom: 1.25rem; }
+    label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.4rem; color: #334155; }
+    input[type="text"] { width: 100%; padding: 0.8rem 1rem; border: 1.5px solid var(--border); border-radius: 8px; font-size: 1rem; }
+    input[type="text"]:focus { outline: none; border-color: var(--primary); ring: 2px solid #93c5fd; }
+    .btn { display: inline-block; width: 100%; background: var(--primary); color: white; border: none; padding: 0.85rem; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.15s; text-align: center; }
+    .btn:hover { background: var(--primary-hover); }
+    .btn:disabled { background: #94a3b8; cursor: not-allowed; }
+    .slate-card { display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; border: 1.5px solid var(--border); border-radius: 8px; margin-bottom: 0.75rem; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+    .slate-card:hover { border-color: var(--primary); background: #f8fafc; }
+    .slate-card input[type="radio"] { margin-top: 0.3rem; width: 18px; height: 18px; accent-color: var(--primary); }
+    .slate-info h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.2rem; }
+    .slate-info p { font-size: 0.85rem; color: var(--text-muted); line-height: 1.3; }
+    .progress-bar-bg { width: 100%; height: 18px; background: #e2e8f0; border-radius: 999px; overflow: hidden; margin-top: 0.4rem; }
+    .progress-bar-fill { height: 100%; background: var(--primary); border-radius: 999px; transition: width 0.4s ease; }
+    .tally-item { margin-bottom: 1.25rem; }
+    .tally-meta { display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; }
+    .badge { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; }
+    .badge-open { background: #fef3c7; color: #92400e; }
+    .badge-closed { background: #dcfce7; color: #166534; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🎓 Student Council Election 2026</h1>
+    <p>Secure, anonymous, single-vote election portal</p>
+  </header>
+
+  <div class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('vote')">Vote Portal</button>
+    <button class="tab-btn" onclick="switchTab('results')">Election Results</button>
+  </div>
+
+  <!-- VOTING TAB -->
+  <div id="tab-vote">
+    <!-- Step 1: Authentication -->
+    <div class="card" id="step-auth">
+      <h2>Step 1: Verify Student Eligibility</h2>
+      <div id="auth-alert" class="alert alert-error"></div>
+      <div class="form-group">
+        <label for="student-id">Student ID</label>
+        <input type="text" id="student-id" placeholder="e.g. STU00001" autocomplete="off" />
+        <small style="color:var(--text-muted); font-size:0.8rem; display:block; margin-top:0.3rem;">Synthetic roll: STU00001 through STU10000</small>
+      </div>
+      <button class="btn" id="btn-verify" onclick="verifyStudent()">Verify & Proceed to Ballot</button>
+    </div>
+
+    <!-- Step 2: Ballot Submission -->
+    <div class="card" id="step-ballot" style="display:none;">
+      <h2>Step 2: Cast Your Anonymous Ballot</h2>
+      <div id="ballot-alert" class="alert alert-error"></div>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.2rem;">
+        🔒 <strong>Ballot Secrecy:</strong> Your student ID is decoupled from your candidate choice.
+      </p>
+      
+      <div class="slate-card" onclick="selectSlate('slate1')">
+        <input type="radio" name="slate" id="slate1" value="Slate 1: Green Campus Coalition" />
+        <div class="slate-info">
+          <h3>🌿 Slate 1: Green Campus Coalition</h3>
+          <p>Sustainable dining, zero-waste campus, bike share expansion, rooftop study gardens.</p>
+        </div>
+      </div>
+
+      <div class="slate-card" onclick="selectSlate('slate2')">
+        <input type="radio" name="slate" id="slate2" value="Slate 2: Tech & Innovation League" />
+        <div class="slate-info">
+          <h3>🚀 Slate 2: Tech & Innovation League</h3>
+          <p>24/7 computing labs, annual hackathons, GPU cloud credits for coursework & clubs.</p>
+        </div>
+      </div>
+
+      <div class="slate-card" onclick="selectSlate('slate3')">
+        <input type="radio" name="slate" id="slate3" value="Slate 3: Student Voice & Welfare" />
+        <div class="slate-info">
+          <h3>🤝 Slate 3: Student Voice & Welfare</h3>
+          <p>Mental health counselling funding, affordable off-campus transit, legal aid clinic.</p>
+        </div>
+      </div>
+
+      <div class="slate-card" onclick="selectSlate('slate4')">
+        <input type="radio" name="slate" id="slate4" value="Slate 4: Arts & Culture Alliance" />
+        <div class="slate-info">
+          <h3>🎨 Slate 4: Arts & Culture Alliance</h3>
+          <p>Campus music festival, maker studios, multicultural week grants, student gallery.</p>
+        </div>
+      </div>
+
+      <button class="btn" id="btn-submit-vote" style="margin-top:1rem;" onclick="submitVote()">Submit Official Ballot</button>
+    </div>
+
+    <!-- Step 3: Confirmation -->
+    <div class="card" id="step-success" style="display:none; text-align:center;">
+      <div style="font-size:3rem; margin-bottom:0.5rem;">🎉</div>
+      <h2 style="color:var(--success);">Ballot Cast Successfully!</h2>
+      <p style="color:var(--text-muted); font-size:0.95rem; margin-bottom:1.5rem;">
+        Your vote has been queued and recorded anonymously. Thank you for participating in the 2026 Student Council Election!
+      </p>
+      <button class="btn" style="background:#475569;" onclick="resetForm()">Vote With Another ID</button>
+    </div>
+  </div>
+
+  <!-- RESULTS TAB -->
+  <div id="tab-results" style="display:none;">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <h2>Official Election Results</h2>
+        <span id="results-badge" class="badge badge-open">Polls Open</span>
+      </div>
+      <div id="results-content">
+        <p style="color:var(--text-muted);">Loading results status...</p>
+      </div>
+      <div style="margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--border);">
+        <button class="btn" style="background:#475569;" onclick="fetchResults()">🔄 Refresh Results</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let voterToken = null;
+
+  // Auto-detect base URLs for local or ingress proxy
+  const API_BASE = window.location.origin;
+
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-vote').style.display = tab === 'vote' ? 'block' : 'none';
+    document.getElementById('tab-results').style.display = tab === 'results' ? 'block' : 'none';
+    event.target.classList.add('active');
+    if (tab === 'results') fetchResults();
+  }
+
+  function selectSlate(id) {
+    document.getElementById(id).checked = true;
+  }
+
+  async function verifyStudent() {
+    const studentIdInput = document.getElementById('student-id');
+    const studentId = studentIdInput.value.trim().toUpperCase();
+    const alertBox = document.getElementById('auth-alert');
+    const btn = document.getElementById('btn-verify');
+
+    alertBox.style.display = 'none';
+    if (!studentId) {
+      alertBox.textContent = 'Please enter a valid Student ID.';
+      alertBox.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Verifying...';
+
+    try {
+      const res = await fetch(`${API_BASE}/eligibility/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: studentId })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Verification failed');
+      }
+      voterToken = data.token;
+      document.getElementById('step-auth').style.display = 'none';
+      document.getElementById('step-ballot').style.display = 'block';
+    } catch (err) {
+      alertBox.textContent = err.message;
+      alertBox.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Verify & Proceed to Ballot';
+    }
+  }
+
+  async function submitVote() {
+    const selected = document.querySelector('input[name="slate"]:checked');
+    const alertBox = document.getElementById('ballot-alert');
+    const btn = document.getElementById('btn-submit-vote');
+
+    alertBox.style.display = 'none';
+    if (!selected) {
+      alertBox.textContent = 'Please select one candidate slate before submitting.';
+      alertBox.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Submitting Ballot...';
+
+    try {
+      const res = await fetch(`${API_BASE}/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: voterToken, candidate_id: selected.value })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Vote submission failed');
+      }
+      document.getElementById('step-ballot').style.display = 'none';
+      document.getElementById('step-success').style.display = 'block';
+    } catch (err) {
+      alertBox.textContent = err.message;
+      alertBox.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Submit Official Ballot';
+    }
+  }
+
+  function resetForm() {
+    voterToken = null;
+    document.getElementById('student-id').value = '';
+    document.querySelectorAll('input[name="slate"]').forEach(r => r.checked = false);
+    document.getElementById('step-success').style.display = 'none';
+    document.getElementById('step-auth').style.display = 'block';
+  }
+
+  async function fetchResults() {
+    const content = document.getElementById('results-content');
+    const badge = document.getElementById('results-badge');
+    content.innerHTML = '<p style="color:var(--text-muted);">Fetching tally data...</p>';
+
+    try {
+      const res = await fetch(`${API_BASE}/results`);
+      const data = await res.json();
+
+      if (!data.revealed) {
+        badge.className = 'badge badge-open';
+        badge.textContent = 'Polls Open';
+        content.innerHTML = `
+          <div style="background:#f8fafc; border:1px dashed var(--border); padding:2rem; text-align:center; border-radius:8px;">
+            <div style="font-size:2.5rem; margin-bottom:0.5rem;">🔒</div>
+            <h3 style="font-size:1.1rem; margin-bottom:0.4rem;">Results Hidden While Polls Are Open</h3>
+            <p style="font-size:0.85rem; color:var(--text-muted); max-width:400px; margin:0 auto;">
+              In accordance with election guidelines, all tallies remain sealed until the scheduled reveal trigger.
+            </p>
+          </div>
+        `;
+      } else {
+        badge.className = 'badge badge-closed';
+        badge.textContent = 'Results Certified';
+
+        let maxVotes = 1;
+        if (data.tallies && data.tallies.length > 0) {
+          maxVotes = Math.max(...data.tallies.map(t => t.vote_count), 1);
+        }
+
+        let talliesHtml = (data.tallies || []).map(t => {
+          const pct = ((t.vote_count / maxVotes) * 100).toFixed(1);
+          return `
+            <div class="tally-item">
+              <div class="tally-meta">
+                <span>${t.candidate_choice}</span>
+                <span>${t.vote_count} votes</span>
+              </div>
+              <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width: ${pct}%;"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        content.innerHTML = `
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem; background:#f1f5f9; padding:1rem; border-radius:8px;">
+            <div>
+              <span style="font-size:0.8rem; color:var(--text-muted); display:block;">Total Turnout</span>
+              <strong style="font-size:1.2rem;">${data.total_turnout || 0} / ${data.total_eligible_voters || 0}</strong>
+            </div>
+            <div>
+              <span style="font-size:0.8rem; color:var(--text-muted); display:block;">Turnout %</span>
+              <strong style="font-size:1.2rem; color:var(--primary);">${data.turnout_percentage || 0}%</strong>
+            </div>
+          </div>
+          <div>${talliesHtml || '<p>No ballots cast.</p>'}</div>
+        `;
+      }
+    } catch (err) {
+      content.innerHTML = `<div class="alert alert-error" style="display:block;">Error loading results: ${err.message}</div>`;
+    }
+  }
+</script>
+</body>
+</html>

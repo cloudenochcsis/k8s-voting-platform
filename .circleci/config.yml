@@ -1,0 +1,48 @@
+version: 2.1
+
+executors:
+  python-env:
+    docker:
+      - image: cimg/python:3.11
+  docker-env:
+    docker:
+      - image: cimg/base:2024.01
+
+jobs:
+  test:
+    executor: python-env
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies & run logic tests
+          command: |
+            pip install pyjwt psycopg2-binary redis
+            python test_e2e.py
+
+  build-and-push:
+    executor: docker-env
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: default
+      - run:
+          name: Build all service containers
+          command: |
+            SERVICES="eligibility-api vote-api worker results-api reveal-gate frontend"
+            TAG=${CIRCLE_SHA1:-v1.0.0}
+            for SVC in $SERVICES; do
+              echo "Building $SVC..."
+              docker build -t student-voting/$SVC:$TAG services/$SVC
+            done
+
+workflows:
+  version: 2
+  build-test-deliver:
+    jobs:
+      - test
+      - build-and-push:
+          requires:
+            - test
+          filters:
+            branches:
+              only: main

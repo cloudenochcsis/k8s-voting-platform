@@ -1,0 +1,159 @@
+version: '3.8'
+
+services:
+  # =============================================================
+  # Floci Multi-Cloud Emulators & Web Dashboard
+  # =============================================================
+  floci-aws:
+    image: floci/floci:latest
+    container_name: floci-aws
+    ports:
+      - "4566:4566"
+    environment:
+      - FLOCI_DEFAULT_REGION=us-east-1
+      - FLOCI_STORAGE_MODE=hybrid
+      - FLOCI_STORAGE_PERSISTENT_PATH=/app/data
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - floci_aws_data:/app/data
+    restart: unless-stopped
+
+  floci-gcp:
+    image: floci/floci-gcp:latest
+    container_name: floci-gcp
+    ports:
+      - "4588:4588"
+    environment:
+      - CLOUDSDK_CORE_PROJECT=floci-local
+    volumes:
+      - floci_gcp_data:/app/data
+    restart: unless-stopped
+
+  floci-az:
+    image: floci/floci-az:latest
+    container_name: floci-az
+    ports:
+      - "4577:4577"
+    volumes:
+      - floci_az_data:/app/data
+    restart: unless-stopped
+
+  floci-ui:
+    image: floci/floci-ui:latest
+    container_name: floci-ui
+    ports:
+      - "4500:4500"
+    environment:
+      - FLOCI_ENDPOINT=http://floci-aws:4566
+      - FLOCI_GCP_ENDPOINT=http://floci-gcp:4588
+      - FLOCI_GCP_PROJECT=floci-local
+      - FLOCI_AZURE_ENDPOINT=http://floci-az:4577
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    depends_on:
+      - floci-aws
+    restart: unless-stopped
+
+  # =============================================================
+  # Student Election Voting Platform Microservices
+  # =============================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: voting-postgres
+    environment:
+      POSTGRES_DB: voting_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d voting_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: voting-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  eligibility-api:
+    build:
+      context: ./services/eligibility-api
+    container_name: voting-eligibility-api
+    environment:
+      DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/voting_db
+      JWT_SECRET: voting-super-secret-jwt-key
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  vote-api:
+    build:
+      context: ./services/vote-api
+    container_name: voting-vote-api
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: voting-super-secret-jwt-key
+    ports:
+      - "8002:8002"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./services/worker
+    container_name: voting-worker
+    environment:
+      DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/voting_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  results-api:
+    build:
+      context: ./services/results-api
+    container_name: voting-results-api
+    environment:
+      DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/voting_db
+      ADMIN_SECRET: admin-secret-reveal-key
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./services/frontend
+    container_name: voting-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - eligibility-api
+      - vote-api
+      - results-api
+
+volumes:
+  pgdata:
+  floci_aws_data:
+  floci_gcp_data:
+  floci_az_data:

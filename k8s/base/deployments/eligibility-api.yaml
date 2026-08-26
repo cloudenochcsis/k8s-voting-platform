@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eligibility-api
+  namespace: voting
+  labels:
+    app.kubernetes.io/name: eligibility-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: eligibility-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: eligibility-api
+    spec:
+      serviceAccountName: sa-eligibility
+      containers:
+      - name: eligibility-api
+        image: student-voting/eligibility-api:v1.0.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8001
+          name: http
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: voting-secrets
+              key: DATABASE_URL
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: voting-secrets
+              key: JWT_SECRET
+        - name: JWT_EXP_SECONDS
+          valueFrom:
+            configMapKeyRef:
+              name: voting-config
+              key: JWT_EXP_SECONDS
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8001
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8001
+          initialDelaySeconds: 3
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eligibility-api
+  namespace: voting
+  labels:
+    app.kubernetes.io/name: eligibility-api
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8001
+    targetPort: 8001
+    name: http
+  selector:
+    app.kubernetes.io/name: eligibility-api

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-worker
+  namespace: voting
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/voting-eks-worker-role"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-vote
+  namespace: voting
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/voting-eks-vote-role"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-eligibility
+  namespace: voting
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/voting-eks-eligibility-role"
