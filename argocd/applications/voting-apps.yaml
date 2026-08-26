@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/my-org/student-voting.git'
+    repoURL: 'https://github.com/cloudenochcsis/k8s-voting-platform.git'
     targetRevision: HEAD
     path: k8s/overlays/eks
   destination:
@@ -31,7 +31,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/my-org/student-voting.git'
+    repoURL: 'https://github.com/cloudenochcsis/k8s-voting-platform.git'
     targetRevision: HEAD
     path: k8s/overlays/gke
   destination:
@@ -54,7 +54,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/my-org/student-voting.git'
+    repoURL: 'https://github.com/cloudenochcsis/k8s-voting-platform.git'
     targetRevision: HEAD
     path: k8s/overlays/aks
   destination:
