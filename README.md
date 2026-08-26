@@ -10,52 +10,6 @@ The system is partitioned into decoupled microservices communicating asynchronou
 
 ![System Architecture](docs/architecture.png)
 
-```
-                                  +-----------------------+
-                                  |    Frontend (SPA)     |
-                                  +-----------+-----------+
-                                              |
-                                  +-----------v-----------+
-                                  |   Ingress Controller  |
-                                  +-----+-----------+-----+
-                                        |           |
-                      +-----------------+           +-----------------+
-                      |                                               |
-            +---------v---------+                           +---------v---------+
-            |  eligibility-api  |                           |     vote-api      |
-            |   (Verify & JWT)  |                           | (Fast-Fail Check) |
-            +---------+---------+                           +---------+---------+
-                      |                                               |
-                      | Reads voter_roll                              | Enqueues payload
-                      v                                               v
-            +-------------------+                           +-------------------+
-            |  voter_roll Table |                           |   Redis Streams   |
-            | (Turnout Tracker) |                           |   (vote_stream)   |
-            +-------------------+                           +---------+---------+
-                      ^                                               |
-                      | Updates has_voted = TRUE                      | xreadgroup
-                      |                                               v
-                      |                                     +-------------------+
-                      |                                     |    worker Pods    |
-                      |                                     | (Single Vote Tx)  |
-                      |                                     +---------+---------+
-                      |                                               |
-                      +-----------------------+-----------------------+
-                                              |
-                                              | Writes anonymous vote
-                                              v
-                                    +-------------------+
-                                    |   ballots Table   |
-                                    | (Ballot Secrecy)  |
-                                    +---------^---------+
-                                              |
-                                              | Queries tallies
-                                    +---------+---------+
-                                    |    results-api    |
-                                    |   & Reveal Gate   |
-                                    +-------------------+
-```
-
 ### Core Design Guarantees
 
 1. **Strict Vote-Once Enforcement**:
