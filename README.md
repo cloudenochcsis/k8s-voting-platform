@@ -8,6 +8,8 @@ A high-concurrency, multi-cloud student council election voting platform archite
 
 The system is partitioned into decoupled microservices communicating asynchronously via Redis Streams and persisting data into PostgreSQL.
 
+![System Architecture](docs/architecture.png)
+
 ```
                                   +-----------------------+
                                   |    Frontend (SPA)     |
