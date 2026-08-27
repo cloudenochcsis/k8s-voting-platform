@@ -3,12 +3,6 @@ variable "project_id" {
   type        = string
 }
 
-variable "kubernetes_version" {
-  description = "Minimum master Kubernetes version for GKE cluster"
-  type        = string
-  default     = "1.35"
-}
-
 variable "region" {
   description = "GCP Region"
   type        = string
@@ -28,7 +22,7 @@ variable "machine_type" {
 }
 
 variable "min_nodes" {
-  description = "Minimum nodes per zone in node pool"
+  description = "Minimum nodes per zone in node pool (regional cluster = x3)"
   type        = number
   default     = 1
 }

@@ -6,6 +6,7 @@ terraform {
       version = "~> 5.20"
     }
   }
+  # ponytail: local state. Add a gcs backend before a second person or CI touches this.
 }
 
 provider "google" {
@@ -29,4 +30,8 @@ module "gke_cluster" {
 
 output "gke_cluster_name" {
   value = module.gke_cluster.cluster_name
+}
+
+output "workload_identity_emails" {
+  value = module.gke_cluster.workload_identity_emails
 }

@@ -5,28 +5,31 @@ namespace: voting
 
 resources:
   - ../../base
+  - secrets.yaml
+  - storageclass.yaml
 
 patches:
   - path: patches/ingress-patch.yaml
   - path: patches/storageclass-patch.yaml
   - path: patches/sa-patch.yaml
 
+# One public registry for all three clouds (CI pushes here); the tag is what CI bumps.
 images:
   - name: student-voting/eligibility-api
-    newName: 123456789012.dkr.ecr.us-east-1.amazonaws.com/student-voting/eligibility-api
+    newName: ghcr.io/cloudenochcsis/student-voting/eligibility-api
     newTag: v1.0.0
   - name: student-voting/vote-api
-    newName: 123456789012.dkr.ecr.us-east-1.amazonaws.com/student-voting/vote-api
+    newName: ghcr.io/cloudenochcsis/student-voting/vote-api
     newTag: v1.0.0
   - name: student-voting/worker
-    newName: 123456789012.dkr.ecr.us-east-1.amazonaws.com/student-voting/worker
+    newName: ghcr.io/cloudenochcsis/student-voting/worker
     newTag: v1.0.0
   - name: student-voting/results-api
-    newName: 123456789012.dkr.ecr.us-east-1.amazonaws.com/student-voting/results-api
+    newName: ghcr.io/cloudenochcsis/student-voting/results-api
     newTag: v1.0.0
   - name: student-voting/frontend
-    newName: 123456789012.dkr.ecr.us-east-1.amazonaws.com/student-voting/frontend
+    newName: ghcr.io/cloudenochcsis/student-voting/frontend
     newTag: v1.0.0
   - name: student-voting/reveal-gate
-    newName: 123456789012.dkr.ecr.us-east-1.amazonaws.com/student-voting/reveal-gate
+    newName: ghcr.io/cloudenochcsis/student-voting/reveal-gate
     newTag: v1.0.0

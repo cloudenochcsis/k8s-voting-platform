@@ -4,7 +4,7 @@ metadata:
   name: sa-worker
   namespace: voting
   annotations:
-    iam.gke.io/gcp-service-account: "voting-worker@my-gcp-project.iam.gserviceaccount.com"
+    iam.gke.io/gcp-service-account: "voting-worker@my-voting-gcp-project.iam.gserviceaccount.com"
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -12,7 +12,7 @@ metadata:
   name: sa-vote
   namespace: voting
   annotations:
-    iam.gke.io/gcp-service-account: "voting-vote@my-gcp-project.iam.gserviceaccount.com"
+    iam.gke.io/gcp-service-account: "voting-vote@my-voting-gcp-project.iam.gserviceaccount.com"
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -20,4 +20,4 @@ metadata:
   name: sa-eligibility
   namespace: voting
   annotations:
-    iam.gke.io/gcp-service-account: "voting-eligibility@my-gcp-project.iam.gserviceaccount.com"
+    iam.gke.io/gcp-service-account: "voting-eligibility@my-voting-gcp-project.iam.gserviceaccount.com"

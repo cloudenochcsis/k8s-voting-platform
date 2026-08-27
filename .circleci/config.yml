@@ -1,42 +1,47 @@
 version: 2.1
 
-executors:
-  python-env:
-    docker:
-      - image: cimg/python:3.11
-  docker-env:
-    docker:
-      - image: cimg/base:2024.01
+# Required project env vars for build-and-push: GHCR_USER, GHCR_TOKEN (PAT with write:packages).
+# Image tag bumps in k8s/overlays/*/kustomization.yaml are a follow-up (ArgoCD Image Updater or a
+# `kustomize edit set image` commit step with a write deploy key).
 
 jobs:
   test:
-    executor: python-env
+    machine:
+      image: ubuntu-2204:current
     steps:
       - checkout
       - run:
-          name: Install dependencies & run logic tests
+          name: Start the stack
+          command: docker compose up -d --build --wait
+      - run:
+          name: Integration test (real services, concurrent duplicate votes)
           command: |
-            pip install pyjwt psycopg2-binary redis
-            python test_e2e.py
+            pip install psycopg2-binary redis
+            python3 test_e2e.py
+      - run:
+          name: Service logs on failure
+          command: docker compose logs --tail 50
+          when: on_fail
 
   build-and-push:
-    executor: docker-env
+    machine:
+      image: ubuntu-2204:current
     steps:
       - checkout
-      - setup_remote_docker:
-          version: default
       - run:
-          name: Build all service containers
+          name: Build and push all service images
           command: |
-            SERVICES="eligibility-api vote-api worker results-api reveal-gate frontend"
-            TAG=${CIRCLE_SHA1:-v1.0.0}
-            for SVC in $SERVICES; do
-              echo "Building $SVC..."
-              docker build -t student-voting/$SVC:$TAG services/$SVC
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            REGISTRY=ghcr.io/cloudenochcsis/student-voting
+            # Independent images: build+push concurrently; every job's exit status is checked.
+            pids=()
+            for SVC in eligibility-api vote-api worker results-api reveal-gate frontend; do
+              ( docker build -q -t "$REGISTRY/$SVC:$CIRCLE_SHA1" "services/$SVC" && docker push -q "$REGISTRY/$SVC:$CIRCLE_SHA1" ) &
+              pids+=($!)
             done
+            fail=0; for pid in "${pids[@]}"; do wait "$pid" || fail=1; done; exit $fail
 
 workflows:
-  version: 2
   build-test-deliver:
     jobs:
       - test

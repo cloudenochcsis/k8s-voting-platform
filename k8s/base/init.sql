@@ -1,16 +1,17 @@
--- DB Schema for Student Council Election
--- Voter roll: Tracks eligibility and turnout. NO ballot info.
+-- DB Schema for Student Council Election. Single source of truth: mounted by docker-compose
+-- and shipped to Kubernetes via the configMapGenerator in kustomization.yaml.
+
+-- Voter roll: eligibility + turnout only. No ballot info, and deliberately no timestamp —
+-- a voted_at column would join to any timestamp on ballots and break secrecy.
 CREATE TABLE IF NOT EXISTS voter_roll (
     student_id VARCHAR(64) PRIMARY KEY,
-    has_voted BOOLEAN DEFAULT FALSE,
-    voted_at TIMESTAMP NULL
+    has_voted BOOLEAN DEFAULT FALSE
 );
 
--- Ballots: Ballot secrecy guaranteed by having NO student_id column
+-- Ballots: no student_id, no FK, no timestamp. Nothing here can be joined back to a voter.
 CREATE TABLE IF NOT EXISTS ballots (
     id SERIAL PRIMARY KEY,
-    candidate_choice VARCHAR(128) NOT NULL,
-    cast_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    candidate_choice VARCHAR(128) NOT NULL
 );
 
 -- Election state (reveal gate)
@@ -24,7 +25,6 @@ CREATE TABLE IF NOT EXISTS election_state (
 INSERT INTO election_state (id, revealed) VALUES (1, FALSE) ON CONFLICT (id) DO NOTHING;
 
 -- Seed 10,000 synthetic student IDs (STU00001 to STU10000)
--- ponytail: simple synthetic range generation via generate_series
 INSERT INTO voter_roll (student_id, has_voted)
 SELECT 'STU' || LPAD(i::text, 5, '0'), FALSE
 FROM generate_series(1, 10000) AS i

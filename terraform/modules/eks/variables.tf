@@ -5,9 +5,8 @@ variable "cluster_name" {
 }
 
 variable "kubernetes_version" {
-  description = "Kubernetes version for the EKS cluster"
+  description = "Kubernetes minor to pin the control plane and node group to (e.g. \"1.35\"). Set per environment; EKS rejects multi-minor jumps."
   type        = string
-  default     = "1.35"
 }
 
 variable "aws_region" {

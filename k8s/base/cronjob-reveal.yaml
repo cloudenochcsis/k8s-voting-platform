@@ -6,7 +6,13 @@ metadata:
   labels:
     app.kubernetes.io/name: reveal-gate
 spec:
-  schedule: "0 20 * * *" # Runs at 20:00 UTC (election poll closing time)
+  # Poll-closing time. The flag is one-way, so this ships SUSPENDED: a daily schedule on a cluster that
+  # exists before election day would reveal results the evening before the poll opens.
+  # On election day:  kubectl -n voting patch cronjob reveal-gate -p '{"spec":{"suspend":false}}'
+  # Or fire it now:   kubectl -n voting create job reveal-now --from=cronjob/reveal-gate
+  schedule: "0 20 * * *"
+  timeZone: "Etc/UTC"
+  suspend: true
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   jobTemplate:

@@ -1,0 +1,23 @@
+# Mounting the CSI volume is what makes the driver materialise the `voting-secrets` Secret (see secrets.yaml).
+# Postgres is the one always-on singleton, so it hosts the mount.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: voting
+spec:
+  template:
+    spec:
+      containers:
+      - name: postgres
+        volumeMounts:
+        - name: secrets-store
+          mountPath: /mnt/secrets-store
+          readOnly: true
+      volumes:
+      - name: secrets-store
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: voting-secrets

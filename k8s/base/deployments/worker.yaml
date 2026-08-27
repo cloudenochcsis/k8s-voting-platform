@@ -6,7 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/name: worker
 spec:
-  replicas: 2
+  # replicas intentionally unset: managed by worker-hpa
   selector:
     matchLabels:
       app.kubernetes.io/name: worker

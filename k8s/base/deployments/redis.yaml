@@ -1,3 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  namespace: voting
+spec:
+  accessModes: [ "ReadWriteOnce" ]
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,6 +18,9 @@ metadata:
     app.kubernetes.io/name: redis
 spec:
   replicas: 1
+  # RWO volume: the old pod must release it before the new one starts.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: redis
@@ -15,9 +29,16 @@ spec:
       labels:
         app.kubernetes.io/name: redis
     spec:
+      # redis:7-alpine ships user `redis` as uid/gid 999.
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
       containers:
       - name: redis
         image: redis:7-alpine
+        # AOF: vote-api answers "queued" once XADD succeeds, so the queue must survive a pod restart.
+        args: ["--appendonly", "yes"]
         ports:
         - containerPort: 6379
           name: redis
@@ -28,6 +49,9 @@ spec:
           limits:
             cpu: "500m"
             memory: "512Mi"
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
         livenessProbe:
           tcpSocket:
             port: 6379
@@ -38,6 +62,10 @@ spec:
             command: ["redis-cli", "ping"]
           initialDelaySeconds: 3
           periodSeconds: 3
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-data
 ---
 apiVersion: v1
 kind: Service

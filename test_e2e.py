@@ -1,93 +1,130 @@
 """
-Self-contained verification test for Student Election voting system logic.
-Verifies:
-1. Eligibility verification and JWT token issuance.
-2. Fast-fail duplicate check logic.
-3. Database transactional one-vote-per-student guarantee.
-4. Ballot secrecy (ballots table decoupled from student ID).
-5. Results gating (hidden when revealed=false, returned when revealed=true).
+Integration test against the docker-compose stack (`docker compose up -d --build`).
+
+Verifies the load-bearing guarantees end to end, with real services:
+1. Eligibility -> JWT -> vote -> worker -> Postgres, no mocks.
+2. Vote-once under *concurrent* duplicate submissions (vote-api fast-fail).
+3. Vote-once at the worker even when the Redis lock is bypassed (DB is the truth).
+4. Ballot secrecy: `ballots` has no identity or timestamp columns to join on.
+5. Candidate allowlist: arbitrary strings (incl. HTML) are rejected.
+6. Results hidden until the reveal flag flips.
+
+Env: BASE_URL (default http://localhost:8080), DATABASE_URL, REDIS_HOST.
 """
-
+import json
+import os
 import time
-import jwt
+import urllib.error
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
-def test_jwt_generation_and_validation():
-    secret = "test-secret-key"
-    student_id = "STU00042"
-    payload = {
-        "sub": student_id,
-        "iat": int(time.time()),
-        "exp": int(time.time()) + 900
-    }
-    token = jwt.encode(payload, secret, algorithm="HS256")
-    
-    decoded = jwt.decode(token, secret, algorithms=["HS256"])
-    assert decoded["sub"] == student_id, "Decoded subject mismatch"
-    print("✓ JWT generation & validation verified")
+import psycopg2
+import redis
 
-def test_mock_voting_state_machine():
-    voter_roll = {f"STU{i:05d}": {"has_voted": False} for i in range(1, 100)}
-    ballots = []
-    election_revealed = False
+BASE_URL = os.getenv("BASE_URL", "http://localhost:8080")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgrespassword@localhost:5432/voting_db")
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+CANDIDATE = "Slate 2: Tech & Innovation League"
 
-    # 1. Verify eligibility for STU00001
-    student_id = "STU00001"
-    assert student_id in voter_roll, "Student should exist in roll"
-    assert not voter_roll[student_id]["has_voted"], "Student should not have voted"
 
-    # 2. Worker process vote
-    candidate_choice = "Slate 2: Tech & Innovation League"
-    # Atomic check-and-set logic
-    if not voter_roll[student_id]["has_voted"]:
-        voter_roll[student_id]["has_voted"] = True
-        ballots.append({"candidate_choice": candidate_choice, "cast_at": time.time()})
-        vote_success = True
-    else:
-        vote_success = False
+def post(path, body):
+    req = urllib.request.Request(
+        f"{BASE_URL}{path}", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as res:
+            return res.status, json.loads(res.read())
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read() or b"{}")
 
-    assert vote_success is True, "First vote should succeed"
-    assert len(ballots) == 1, "One ballot should be recorded"
-    assert "student_id" not in ballots[0], "Ballot secrecy violation: student_id found in ballot"
 
-    # 3. Duplicate vote attempt with same student_id
-    if not voter_roll[student_id]["has_voted"]:
-        voter_roll[student_id]["has_voted"] = True
-        ballots.append({"candidate_choice": candidate_choice, "cast_at": time.time()})
-        second_vote_success = True
-    else:
-        second_vote_success = False
+def get(path):
+    with urllib.request.urlopen(f"{BASE_URL}{path}", timeout=10) as res:
+        return json.loads(res.read())
 
-    assert second_vote_success is False, "Duplicate vote must be rejected"
-    assert len(ballots) == 1, "Duplicate ballot must not be recorded"
-    print("✓ Single-vote guarantee and ballot secrecy verified")
 
-    # 4. Results Gate test
-    # When polls open (revealed = False)
-    if not election_revealed:
-        results_output = {"revealed": False}
-    else:
-        results_output = {"revealed": True, "tallies": ballots}
+def query(sql, params=()):
+    with psycopg2.connect(DATABASE_URL) as conn, conn.cursor() as cur:
+        cur.execute(sql, params)
+        return cur.fetchall() if cur.description else None
 
-    assert results_output["revealed"] is False, "Results should be hidden when unrevealed"
 
-    # Flip reveal gate
-    election_revealed = True
-    if not election_revealed:
-        results_output = {"revealed": False}
-    else:
-        from collections import Counter
-        counts = Counter(b["candidate_choice"] for b in ballots)
-        results_output = {
-            "revealed": True,
-            "tallies": [{"candidate": k, "votes": v} for k, v in counts.items()]
-        }
+def wait_for(pred, timeout=15):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if pred():
+            return True
+        time.sleep(0.25)
+    return False
 
-    assert results_output["revealed"] is True, "Results should be visible when revealed"
-    assert results_output["tallies"][0]["votes"] == 1, "Tally count mismatch"
-    print("✓ Reveal gate logic verified")
+
+def main():
+    # Fresh state so the test is re-runnable against a long-lived stack.
+    query("DELETE FROM ballots; UPDATE voter_roll SET has_voted = FALSE; UPDATE election_state SET revealed = FALSE, revealed_at = NULL")
+    redis.Redis(host=REDIS_HOST).flushall()
+
+    # 4. Secrecy: the ballots table must expose nothing joinable to a voter.
+    cols = {r[0] for r in query("SELECT column_name FROM information_schema.columns WHERE table_name = 'ballots'")}
+    assert cols == {"id", "candidate_choice"}, f"ballots leaks joinable columns: {cols}"
+    voter_cols = {r[0] for r in query("SELECT column_name FROM information_schema.columns WHERE table_name = 'voter_roll'")}
+    assert "voted_at" not in voter_cols, "voter_roll.voted_at joins identity to ballots.cast_at"
+    print("ok  ballot schema has no identity/timestamp columns")
+
+    # 1. Eligibility issues a token.
+    status, body = post("/eligibility/verify", {"student_id": "stu00042"})
+    assert status == 200, body
+    token = body["token"]
+    print("ok  eligibility token issued")
+
+    # 5. Candidate allowlist.
+    status, body = post("/vote", {"token": token, "candidate_id": "<img src=x onerror=alert(1)>"})
+    assert status == 422, f"expected 422 for unknown candidate, got {status} {body}"
+    print("ok  unknown candidate rejected")
+
+    # 2. Concurrent duplicate submissions with the same token.
+    with ThreadPoolExecutor(max_workers=50) as ex:
+        results = list(ex.map(lambda _: post("/vote", {"token": token, "candidate_id": CANDIDATE})[0], range(50)))
+    assert results.count(200) == 1 and results.count(409) == 49, f"statuses: {sorted(results)}"
+    print("ok  50 concurrent submits -> exactly one queued")
+
+    assert wait_for(lambda: query("SELECT has_voted FROM voter_roll WHERE student_id = 'STU00042'")[0][0]), "worker never recorded vote"
+    assert query("SELECT COUNT(*) FROM ballots")[0][0] == 1
+    status, _ = post("/eligibility/verify", {"student_id": "STU00042"})
+    assert status == 409, "already-voted student re-issued a token"
+    print("ok  worker recorded exactly one ballot; re-verify is 409")
+
+    # 3. Bypass the Redis lock entirely: 20 raw stream entries for one student -> still one ballot.
+    r = redis.Redis(host=REDIS_HOST)
+    for _ in range(20):
+        r.xadd("vote_stream", {"student_id": "STU00043", "candidate_id": CANDIDATE})
+    assert wait_for(lambda: query("SELECT has_voted FROM voter_roll WHERE student_id = 'STU00043'")[0][0])
+    time.sleep(1)  # let any stragglers drain
+    assert query("SELECT COUNT(*) FROM ballots")[0][0] == 2, "worker double-counted a student"
+    assert r.xpending("vote_stream", "vote_workers")["pending"] == 0, "worker left messages unacked"
+    assert r.xlen("vote_stream") == 0, "processed entries (student_id -> choice) left in the stream"
+    print("ok  20 duplicate stream entries -> one ballot, all acked, stream drained")
+
+    # 3b. Dead consumer: atomically add an entry and read it under a consumer that will never ack it.
+    # The live worker must reclaim it (XAUTOCLAIM after RECLAIM_IDLE_MS, 3s in compose) and record the vote.
+    pipe = r.pipeline(transaction=True)
+    pipe.xadd("vote_stream", {"student_id": "STU00044", "candidate_id": CANDIDATE})
+    pipe.xreadgroup("vote_workers", "ghost", {"vote_stream": ">"}, count=1)
+    pipe.execute()
+    assert r.xpending("vote_stream", "vote_workers")["pending"] == 1, "entry was not parked under the ghost consumer"
+    assert wait_for(lambda: query("SELECT has_voted FROM voter_roll WHERE student_id = 'STU00044'")[0][0], timeout=20), \
+        "worker never reclaimed the dead consumer's message"
+    assert wait_for(lambda: r.xpending("vote_stream", "vote_workers")["pending"] == 0 and r.xlen("vote_stream") == 0)
+    print("ok  dead consumer's pending entry reclaimed and recorded")
+
+    # 6. Reveal gate.
+    assert get("/results")["revealed"] is False
+    query("UPDATE election_state SET revealed = TRUE, revealed_at = NOW() WHERE id = 1")
+    res = get("/results")
+    assert res["revealed"] is True and res["total_turnout"] == 3
+    assert {t["candidate_choice"]: t["vote_count"] for t in res["tallies"]} == {CANDIDATE: 3}
+    print("ok  results hidden before reveal, tallied after")
+    print("ALL PASSED")
+
 
 if __name__ == "__main__":
-    print("Running Student Election Voting Platform core logic tests...")
-    test_jwt_generation_and_validation()
-    test_mock_voting_state_machine()
-    print("All core tests passed successfully!")
+    main()
