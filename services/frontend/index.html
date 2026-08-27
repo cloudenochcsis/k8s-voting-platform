@@ -155,6 +155,9 @@
   // Auto-detect base URLs for local or ingress proxy
   const API_BASE = window.location.origin;
 
+  // Candidate names come from the API; escape before interpolating into innerHTML.
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
   function switchTab(tab) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('tab-vote').style.display = tab === 'vote' ? 'block' : 'none';
@@ -284,7 +287,7 @@
           return `
             <div class="tally-item">
               <div class="tally-meta">
-                <span>${t.candidate_choice}</span>
+                <span>${esc(t.candidate_choice)}</span>
                 <span>${t.vote_count} votes</span>
               </div>
               <div class="progress-bar-bg">

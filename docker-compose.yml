@@ -1,4 +1,5 @@
-version: '3.8'
+x-db-url: &db_url postgresql://postgres:postgrespassword@postgres:5432/voting_db
+x-jwt: &jwt_secret local-dev-only-jwt-secret
 
 services:
   postgres:
@@ -9,7 +10,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgrespassword
     volumes:
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./k8s/base/init.sql:/docker-entrypoint-initdb.d/init.sql
       - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
@@ -22,6 +23,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: voting-redis
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
     healthcheck:
@@ -31,12 +33,11 @@ services:
       retries: 5
 
   eligibility-api:
-    build:
-      context: ./services/eligibility-api
+    build: ./services/eligibility-api
     container_name: voting-eligibility-api
     environment:
-      DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/voting_db
-      JWT_SECRET: voting-super-secret-jwt-key
+      DATABASE_URL: *db_url
+      JWT_SECRET: *jwt_secret
     ports:
       - "8001:8001"
     depends_on:
@@ -44,13 +45,12 @@ services:
         condition: service_healthy
 
   vote-api:
-    build:
-      context: ./services/vote-api
+    build: ./services/vote-api
     container_name: voting-vote-api
     environment:
       REDIS_HOST: redis
-      REDIS_PORT: 6379
-      JWT_SECRET: voting-super-secret-jwt-key
+      JWT_SECRET: *jwt_secret
+      CANDIDATES: "Slate 1: Green Campus Coalition|Slate 2: Tech & Innovation League|Slate 3: Student Voice & Welfare|Slate 4: Arts & Culture Alliance"
     ports:
       - "8002:8002"
     depends_on:
@@ -58,13 +58,11 @@ services:
         condition: service_healthy
 
   worker:
-    build:
-      context: ./services/worker
+    build: ./services/worker
     container_name: voting-worker
     environment:
-      DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/voting_db
+      DATABASE_URL: *db_url
       REDIS_HOST: redis
-      REDIS_PORT: 6379
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,12 +70,10 @@ services:
         condition: service_healthy
 
   results-api:
-    build:
-      context: ./services/results-api
+    build: ./services/results-api
     container_name: voting-results-api
     environment:
-      DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/voting_db
-      ADMIN_SECRET: admin-secret-reveal-key
+      DATABASE_URL: *db_url
     ports:
       - "8003:8003"
     depends_on:
@@ -85,15 +81,24 @@ services:
         condition: service_healthy
 
   frontend:
-    build:
-      context: ./services/frontend
+    build: ./services/frontend
     container_name: voting-frontend
     ports:
-      - "8080:80"
+      - "8080:8080"
     depends_on:
       - eligibility-api
       - vote-api
       - results-api
+
+  # One-shot: `docker compose run --rm reveal-gate` (mirrors the Kubernetes CronJob)
+  reveal-gate:
+    build: ./services/reveal-gate
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: *db_url
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   pgdata:
