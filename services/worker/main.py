@@ -16,7 +16,7 @@ REDIS_STREAM = os.getenv("REDIS_STREAM", "vote_stream")
 GROUP_NAME = os.getenv("REDIS_GROUP", "vote_workers")
 CONSUMER_NAME = os.getenv("CONSUMER_NAME", f"worker-{socket.gethostname()}")
 BATCH = 20
-RECLAIM_IDLE_MS = 60_000  # messages left unacked this long belong to a dead consumer
+RECLAIM_IDLE_MS = int(os.getenv("RECLAIM_IDLE_MS", "60000"))  # unacked this long = dead consumer; tests shrink it
 
 running = True
 
@@ -92,7 +92,9 @@ def main():
 
             for msg_id, data in claimed + fresh:
                 process(db_conn, data)
-                r.xack(REDIS_STREAM, GROUP_NAME, msg_id)  # ack only after commit; a crash before this is retried
+                # Ack only after commit (a crash before this is retried), then delete: the entry itself is the
+                # student_id -> choice pair, and Redis now persists to disk.
+                r.pipeline().xack(REDIS_STREAM, GROUP_NAME, msg_id).xdel(REDIS_STREAM, msg_id).execute()
         except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
             logging.error(f"Database error: {e}. Reconnecting...")
             db_conn = get_db_connection()

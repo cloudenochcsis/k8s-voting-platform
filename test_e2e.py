@@ -101,14 +101,27 @@ def main():
     time.sleep(1)  # let any stragglers drain
     assert query("SELECT COUNT(*) FROM ballots")[0][0] == 2, "worker double-counted a student"
     assert r.xpending("vote_stream", "vote_workers")["pending"] == 0, "worker left messages unacked"
-    print("ok  20 duplicate stream entries -> one ballot, all acked")
+    assert r.xlen("vote_stream") == 0, "processed entries (student_id -> choice) left in the stream"
+    print("ok  20 duplicate stream entries -> one ballot, all acked, stream drained")
+
+    # 3b. Dead consumer: atomically add an entry and read it under a consumer that will never ack it.
+    # The live worker must reclaim it (XAUTOCLAIM after RECLAIM_IDLE_MS, 3s in compose) and record the vote.
+    pipe = r.pipeline(transaction=True)
+    pipe.xadd("vote_stream", {"student_id": "STU00044", "candidate_id": CANDIDATE})
+    pipe.xreadgroup("vote_workers", "ghost", {"vote_stream": ">"}, count=1)
+    pipe.execute()
+    assert r.xpending("vote_stream", "vote_workers")["pending"] == 1, "entry was not parked under the ghost consumer"
+    assert wait_for(lambda: query("SELECT has_voted FROM voter_roll WHERE student_id = 'STU00044'")[0][0], timeout=20), \
+        "worker never reclaimed the dead consumer's message"
+    assert wait_for(lambda: r.xpending("vote_stream", "vote_workers")["pending"] == 0 and r.xlen("vote_stream") == 0)
+    print("ok  dead consumer's pending entry reclaimed and recorded")
 
     # 6. Reveal gate.
     assert get("/results")["revealed"] is False
     query("UPDATE election_state SET revealed = TRUE, revealed_at = NOW() WHERE id = 1")
     res = get("/results")
-    assert res["revealed"] is True and res["total_turnout"] == 2
-    assert {t["candidate_choice"]: t["vote_count"] for t in res["tallies"]} == {CANDIDATE: 2}
+    assert res["revealed"] is True and res["total_turnout"] == 3
+    assert {t["candidate_choice"]: t["vote_count"] for t in res["tallies"]} == {CANDIDATE: 3}
     print("ok  results hidden before reveal, tallied after")
     print("ALL PASSED")
 

@@ -40,6 +40,11 @@ services:
       JWT_SECRET: *jwt_secret
     ports:
       - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/healthz', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +58,11 @@ services:
       CANDIDATES: "Slate 1: Green Campus Coalition|Slate 2: Tech & Innovation League|Slate 3: Student Voice & Welfare|Slate 4: Arts & Culture Alliance"
     ports:
       - "8002:8002"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/healthz', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
     depends_on:
       redis:
         condition: service_healthy
@@ -63,6 +73,7 @@ services:
     environment:
       DATABASE_URL: *db_url
       REDIS_HOST: redis
+      RECLAIM_IDLE_MS: "3000"  # dev/test only; production keeps the 60s default
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,6 +87,11 @@ services:
       DATABASE_URL: *db_url
     ports:
       - "8003:8003"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/healthz', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
     depends_on:
       postgres:
         condition: service_healthy

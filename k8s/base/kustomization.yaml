@@ -26,7 +26,8 @@ configMapGenerator:
     files:
       - init.sql
 
-# Every workload runs non-root with no capabilities; images already declare a non-root USER.
+# Every workload runs non-root with no capabilities; images declare a NUMERIC non-root USER (the kubelet
+# cannot verify a named user against runAsNonRoot).
 # Pod-level map: strategic merge (keeps postgres/redis runAsUser/fsGroup). Container-level block:
 # JSON patch on containers/0, because strategic merge keys containers by name and would APPEND a
 # stray container instead of merging. Every pod here has exactly one container.

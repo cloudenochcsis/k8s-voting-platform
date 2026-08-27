@@ -12,6 +12,7 @@ spec:
     chart: external-secrets
     targetRevision: 0.19.2
     helm:
+      releaseName: external-secrets  # SA is named after the release; terraform binds external-secrets/external-secrets
       valuesObject:
         serviceAccount:
           annotations:
@@ -58,10 +59,11 @@ spec:
     chart: external-secrets
     targetRevision: 0.19.2
     helm:
+      releaseName: external-secrets  # SA is named after the release; terraform binds external-secrets/external-secrets
       valuesObject:
         serviceAccount:
           annotations:
-            iam.gke.io/gcp-service-account: voting-external-secrets@my-gcp-project.iam.gserviceaccount.com
+            iam.gke.io/gcp-service-account: voting-external-secrets@my-voting-gcp-project.iam.gserviceaccount.com
   destination:
     server: https://gke-cluster.internal
     namespace: external-secrets

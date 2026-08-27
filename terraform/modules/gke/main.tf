@@ -128,9 +128,18 @@ resource "google_service_account_iam_member" "wi" {
   member             = "serviceAccount:${var.project_id}.svc.id.goog[${each.value}]"
 }
 
-# External Secrets Operator reads the app secret from Secret Manager.
-resource "google_project_iam_member" "external_secrets" {
-  project = var.project_id
-  role    = "roles/secretmanager.secretAccessor"
-  member  = "serviceAccount:${google_service_account.wi["external-secrets"].email}"
+# External Secrets Operator may read exactly one secret. Versions are seeded out-of-band (see the overlay).
+resource "google_secret_manager_secret" "app" {
+  secret_id = "voting-app"
+  project   = var.project_id
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_iam_member" "external_secrets" {
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.app.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.wi["external-secrets"].email}"
 }

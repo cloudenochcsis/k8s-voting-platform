@@ -151,6 +151,27 @@ spec:
     - protocol: TCP
       port: 5432
 ---
+# 7b. reveal-gate CronJob pods: egress to postgres only (the namespace-wide policy egress-isolates every pod)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-reveal-gate
+  namespace: voting
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: reveal-gate
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+---
 # 8. Redis ingress policy: only vote-api and worker can connect
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

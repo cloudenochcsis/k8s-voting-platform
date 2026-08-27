@@ -3,6 +3,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY reveal.py .
-RUN useradd --system --no-create-home app
-USER app
+# Numeric UID: with runAsNonRoot the kubelet refuses a named USER it cannot verify.
+RUN useradd --system --no-create-home --uid 10001 app
+USER 10001
 CMD ["python", "reveal.py"]

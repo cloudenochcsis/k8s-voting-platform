@@ -163,7 +163,8 @@ resource "aws_iam_openid_connect_provider" "eks" {
 
 # Official policy document for the AWS Load Balancer Controller (pinned to the chart's app version).
 data "http" "alb_policy" {
-  url = "https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.13.0/docs/install/iam_policy.json"
+  url                = "https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.13.0/docs/install/iam_policy.json"
+  request_timeout_ms = 10000
 }
 
 resource "aws_iam_policy" "alb" {
