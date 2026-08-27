@@ -33,10 +33,11 @@ jobs:
           command: |
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             REGISTRY=ghcr.io/cloudenochcsis/student-voting
+            # Six independent images: build+push concurrently, fail the job if any pair fails.
             for SVC in eligibility-api vote-api worker results-api reveal-gate frontend; do
-              docker build -t "$REGISTRY/$SVC:$CIRCLE_SHA1" "services/$SVC"
-              docker push "$REGISTRY/$SVC:$CIRCLE_SHA1"
+              ( docker build -q -t "$REGISTRY/$SVC:$CIRCLE_SHA1" "services/$SVC" && docker push -q "$REGISTRY/$SVC:$CIRCLE_SHA1" ) &
             done
+            wait -n; for _ in 1 2 3 4 5; do wait -n || exit 1; done
 
 workflows:
   build-test-deliver:

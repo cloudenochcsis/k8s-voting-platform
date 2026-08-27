@@ -24,18 +24,10 @@ spec:
         spec:
           serviceAccountName: sa-reveal-gate
           restartPolicy: OnFailure
-          securityContext:
-            runAsNonRoot: true
-            seccompProfile:
-              type: RuntimeDefault
           containers:
           - name: reveal-gate
             image: student-voting/reveal-gate:v1.0.0
             imagePullPolicy: IfNotPresent
-            securityContext:
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop: ["ALL"]
             env:
             - name: DATABASE_URL
               valueFrom:

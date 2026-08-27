@@ -27,6 +27,9 @@ configMapGenerator:
       - init.sql
 
 # Every workload runs non-root with no capabilities; images already declare a non-root USER.
+# Pod-level map: strategic merge (keeps postgres/redis runAsUser/fsGroup). Container-level block:
+# JSON patch on containers/0, because strategic merge keys containers by name and would APPEND a
+# stray container instead of merging. Every pod here has exactly one container.
 patches:
   - target:
       kind: Deployment
@@ -42,9 +45,60 @@ patches:
               runAsNonRoot: true
               seccompProfile:
                 type: RuntimeDefault
-            containers:
-              - name: not-important
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/securityContext
+        value:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+  - target:
+      kind: StatefulSet
+    patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: not-important
+      spec:
+        template:
+          spec:
+            securityContext:
+              runAsNonRoot: true
+              seccompProfile:
+                type: RuntimeDefault
+  - target:
+      kind: StatefulSet
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/securityContext
+        value:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+  - target:
+      kind: CronJob
+    patch: |-
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: not-important
+      spec:
+        jobTemplate:
+          spec:
+            template:
+              spec:
                 securityContext:
-                  allowPrivilegeEscalation: false
-                  capabilities:
-                    drop: ["ALL"]
+                  runAsNonRoot: true
+                  seccompProfile:
+                    type: RuntimeDefault
+  - target:
+      kind: CronJob
+    patch: |-
+      - op: add
+        path: /spec/jobTemplate/spec/template/spec/containers/0/securityContext
+        value:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
