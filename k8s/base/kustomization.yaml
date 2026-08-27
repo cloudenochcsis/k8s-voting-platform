@@ -6,7 +6,6 @@ namespace: voting
 resources:
   - rbac.yaml
   - configmap.yaml
-  - secrets.yaml
   - deployments/redis.yaml
   - deployments/eligibility-api.yaml
   - deployments/vote-api.yaml
@@ -18,3 +17,34 @@ resources:
   - hpa.yaml
   - network-policies.yaml
   - cronjob-reveal.yaml
+# NOTE: no Secret here. Each overlay materialises `voting-secrets` from its cloud's secret store
+# (ExternalSecret on EKS/GKE, Key Vault CSI on AKS). For kind/local: kubectl create secret generic voting-secrets ...
+
+# Schema lives in one file, shared with docker-compose.
+configMapGenerator:
+  - name: postgres-init-config
+    files:
+      - init.sql
+
+# Every workload runs non-root with no capabilities; images already declare a non-root USER.
+patches:
+  - target:
+      kind: Deployment
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: not-important
+      spec:
+        template:
+          spec:
+            securityContext:
+              runAsNonRoot: true
+              seccompProfile:
+                type: RuntimeDefault
+            containers:
+              - name: not-important
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop: ["ALL"]

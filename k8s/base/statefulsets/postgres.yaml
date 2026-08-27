@@ -1,37 +1,4 @@
 apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: postgres-init-config
-  namespace: voting
-data:
-  init.sql: |
-    CREATE TABLE IF NOT EXISTS voter_roll (
-        student_id VARCHAR(64) PRIMARY KEY,
-        has_voted BOOLEAN DEFAULT FALSE,
-        voted_at TIMESTAMP NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS ballots (
-        id SERIAL PRIMARY KEY,
-        candidate_choice VARCHAR(128) NOT NULL,
-        cast_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS election_state (
-        id INT PRIMARY KEY DEFAULT 1,
-        revealed BOOLEAN DEFAULT FALSE,
-        revealed_at TIMESTAMP NULL,
-        CONSTRAINT single_row CHECK (id = 1)
-    );
-
-    INSERT INTO election_state (id, revealed) VALUES (1, FALSE) ON CONFLICT (id) DO NOTHING;
-
-    INSERT INTO voter_roll (student_id, has_voted)
-    SELECT 'STU' || LPAD(i::text, 5, '0'), FALSE
-    FROM generate_series(1, 10000) AS i
-    ON CONFLICT (student_id) DO NOTHING;
----
-apiVersion: v1
 kind: Service
 metadata:
   name: postgres
@@ -65,9 +32,21 @@ spec:
       labels:
         app.kubernetes.io/name: postgres
     spec:
+      # postgres:16-alpine ships user `postgres` as uid/gid 70; fsGroup lets it write the PVC without root.
+      securityContext:
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: postgres
         image: postgres:16-alpine
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
         ports:
         - containerPort: 5432
           name: postgres
@@ -81,6 +60,9 @@ spec:
             secretKeyRef:
               name: voting-secrets
               key: POSTGRES_PASSWORD
+        # Subdirectory of the mount: initdb refuses a non-empty dir, and ext4 volumes (EBS/PD/Azure Disk) contain lost+found.
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
         resources:
           requests:
             cpu: "250m"

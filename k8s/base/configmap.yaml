@@ -9,3 +9,5 @@ data:
   REDIS_STREAM: "vote_stream"
   REDIS_GROUP: "vote_workers"
   JWT_EXP_SECONDS: "900"
+  # Pipe-separated allowlist enforced by vote-api. Must match the slates in services/frontend/index.html.
+  CANDIDATES: "Slate 1: Green Campus Coalition|Slate 2: Tech & Innovation League|Slate 3: Student Voice & Welfare|Slate 4: Arts & Culture Alliance"

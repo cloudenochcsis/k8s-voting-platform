@@ -31,13 +31,6 @@ spec:
             name: results-api
             port:
               number: 8003
-      - path: /admin
-        pathType: Prefix
-        backend:
-          service:
-            name: results-api
-            port:
-              number: 8003
       - path: /
         pathType: Prefix
         backend:

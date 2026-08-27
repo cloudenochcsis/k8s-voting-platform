@@ -29,11 +29,6 @@ spec:
             secretKeyRef:
               name: voting-secrets
               key: DATABASE_URL
-        - name: ADMIN_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: voting-secrets
-              key: ADMIN_SECRET
         resources:
           requests:
             cpu: "100m"

@@ -6,7 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/name: vote-api
 spec:
-  replicas: 3
+  # replicas intentionally unset: managed by vote-api-hpa (a fixed value here is reverted by ArgoCD selfHeal)
   selector:
     matchLabels:
       app.kubernetes.io/name: vote-api
@@ -44,6 +44,11 @@ spec:
             secretKeyRef:
               name: voting-secrets
               key: JWT_SECRET
+        - name: CANDIDATES
+          valueFrom:
+            configMapKeyRef:
+              name: voting-config
+              key: CANDIDATES
         resources:
           requests:
             cpu: "150m"
