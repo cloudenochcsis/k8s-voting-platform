@@ -23,6 +23,24 @@ resource "google_compute_subnetwork" "subnet" {
   }
 }
 
+# Least-privilege node identity instead of the default Compute Engine SA.
+resource "google_service_account" "nodes" {
+  account_id   = "${var.cluster_name}-nodes"
+  display_name = "GKE node service account for ${var.cluster_name}"
+  project      = var.project_id
+}
+
+resource "google_project_iam_member" "nodes" {
+  for_each = toset([
+    "roles/logging.logWriter",
+    "roles/monitoring.metricWriter",
+    "roles/monitoring.viewer",
+  ])
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.nodes.email}"
+}
+
 # GKE Cluster with Workload Identity Enabled
 resource "google_container_cluster" "primary" {
   name     = var.cluster_name
@@ -44,10 +62,13 @@ resource "google_container_cluster" "primary" {
     workload_pool = "${var.project_id}.svc.id.goog"
   }
 
+  # Dataplane V2 (eBPF) enforces NetworkPolicy; the legacy dataplane ignores it unless Calico is added.
+  datapath_provider = "ADVANCED_DATAPATH"
+
   deletion_protection = false
 
-  min_master_version = var.kubernetes_version
-
+  # No min_master_version: under a release channel the version is a floor GKE upgrades past anyway,
+  # and a pinned minor fails to apply once it rotates out of the channel. The channel is the pin.
   release_channel {
     channel = "REGULAR"
   }
@@ -66,9 +87,10 @@ resource "google_container_node_pool" "primary_nodes" {
   }
 
   node_config {
-    machine_type = var.machine_type
-    disk_type    = "pd-standard"
-    disk_size_gb = 50
+    machine_type    = var.machine_type
+    disk_type       = "pd-standard"
+    disk_size_gb    = 50
+    service_account = google_service_account.nodes.email
 
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform"
@@ -78,4 +100,37 @@ resource "google_container_node_pool" "primary_nodes" {
       mode = "GKE_METADATA"
     }
   }
+}
+
+# ---------------------------------------------------------------------------
+# Workload Identity: one GSA per Kubernetes ServiceAccount that needs cloud access.
+# This is what makes the iam.gke.io/gcp-service-account annotations in the overlay real.
+# ---------------------------------------------------------------------------
+locals {
+  workload_identities = {
+    worker           = "voting/sa-worker"
+    vote             = "voting/sa-vote"
+    eligibility      = "voting/sa-eligibility"
+    external-secrets = "external-secrets/external-secrets"
+  }
+}
+
+resource "google_service_account" "wi" {
+  for_each   = local.workload_identities
+  account_id = "voting-${each.key}"
+  project    = var.project_id
+}
+
+resource "google_service_account_iam_member" "wi" {
+  for_each           = local.workload_identities
+  service_account_id = google_service_account.wi[each.key].name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[${each.value}]"
+}
+
+# External Secrets Operator reads the app secret from Secret Manager.
+resource "google_project_iam_member" "external_secrets" {
+  project = var.project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${google_service_account.wi["external-secrets"].email}"
 }

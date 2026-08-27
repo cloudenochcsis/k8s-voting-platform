@@ -10,6 +10,8 @@ resource "aws_vpc" "main" {
   }
 }
 
+# ponytail: nodes in public subnets (no NAT gateway cost) — fine for a portfolio cluster,
+# move nodes to private subnets + NAT before anything real runs here.
 resource "aws_subnet" "public" {
   count                   = 2
   vpc_id                  = aws_vpc.main.id
@@ -72,7 +74,7 @@ resource "aws_iam_role_policy_attachment" "cluster_policy" {
 resource "aws_eks_cluster" "main" {
   name     = var.cluster_name
   role_arn = aws_iam_role.cluster.arn
-  version  = var.kubernetes_version
+  version  = var.kubernetes_version # exact minor pin; EKS will not skip minors on upgrade
 
   access_config {
     authentication_mode                         = "API_AND_CONFIG_MAP"
@@ -126,6 +128,7 @@ resource "aws_eks_node_group" "main" {
   node_role_arn   = aws_iam_role.nodes.arn
   subnet_ids      = aws_subnet.public[*].id
   instance_types  = var.node_instance_types
+  version         = aws_eks_cluster.main.version # keep nodes on the control-plane minor
 
   scaling_config {
     desired_size = var.desired_nodes
@@ -133,9 +136,108 @@ resource "aws_eks_node_group" "main" {
     min_size     = var.min_nodes
   }
 
+  lifecycle {
+    ignore_changes = [scaling_config[0].desired_size] # cluster-autoscaler owns this
+  }
+
   depends_on = [
     aws_iam_role_policy_attachment.worker_node_policy,
     aws_iam_role_policy_attachment.cni_policy,
     aws_iam_role_policy_attachment.registry_policy
   ]
+}
+
+# ---------------------------------------------------------------------------
+# IRSA: OIDC provider + one role per ServiceAccount that needs cloud access.
+# This is what makes the eks.amazonaws.com/role-arn annotations in the overlay real.
+# ---------------------------------------------------------------------------
+data "tls_certificate" "oidc" {
+  url = aws_eks_cluster.main.identity[0].oidc[0].issuer
+}
+
+resource "aws_iam_openid_connect_provider" "eks" {
+  url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.oidc.certificates[0].sha1_fingerprint]
+}
+
+# Official policy document for the AWS Load Balancer Controller (pinned to the chart's app version).
+data "http" "alb_policy" {
+  url = "https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.13.0/docs/install/iam_policy.json"
+}
+
+resource "aws_iam_policy" "alb" {
+  name   = "${var.cluster_name}-alb-controller"
+  policy = data.http.alb_policy.response_body
+}
+
+resource "aws_iam_policy" "external_secrets" {
+  name = "${var.cluster_name}-external-secrets"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+      Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:voting/*"
+    }]
+  })
+}
+
+locals {
+  oidc_host = trimprefix(aws_iam_openid_connect_provider.eks.url, "https://")
+  # namespace/serviceaccount -> managed policy (null = identity only, no permissions yet)
+  irsa_roles = {
+    ebs-csi          = { ns = "kube-system", sa = "ebs-csi-controller-sa", policy = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy" }
+    alb-controller   = { ns = "kube-system", sa = "aws-load-balancer-controller", policy = aws_iam_policy.alb.arn }
+    external-secrets = { ns = "external-secrets", sa = "external-secrets", policy = aws_iam_policy.external_secrets.arn }
+    worker           = { ns = "voting", sa = "sa-worker", policy = null }
+    vote             = { ns = "voting", sa = "sa-vote", policy = null }
+    eligibility      = { ns = "voting", sa = "sa-eligibility", policy = null }
+  }
+}
+
+resource "aws_iam_role" "irsa" {
+  for_each = local.irsa_roles
+  name     = "${var.cluster_name}-${each.key}-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Principal = { Federated = aws_iam_openid_connect_provider.eks.arn }
+      Condition = {
+        StringEquals = {
+          "${local.oidc_host}:sub" = "system:serviceaccount:${each.value.ns}:${each.value.sa}"
+          "${local.oidc_host}:aud" = "sts.amazonaws.com"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "irsa" {
+  for_each   = { for k, v in local.irsa_roles : k => v if v.policy != null }
+  role       = aws_iam_role.irsa[each.key].name
+  policy_arn = each.value.policy
+}
+
+# ---------------------------------------------------------------------------
+# Managed add-ons. VPC CNI does NOT enforce NetworkPolicy unless told to — without this,
+# every NetworkPolicy in k8s/base is silently ignored.
+# ---------------------------------------------------------------------------
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name                = aws_eks_cluster.main.name
+  addon_name                  = "vpc-cni"
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+  configuration_values        = jsonencode({ enableNetworkPolicy = "true" })
+}
+
+# gp3 volumes (k8s/overlays/eks/storageclass.yaml) need the CSI driver; it is not installed by default.
+resource "aws_eks_addon" "ebs_csi" {
+  cluster_name             = aws_eks_cluster.main.name
+  addon_name               = "aws-ebs-csi-driver"
+  service_account_role_arn = aws_iam_role.irsa["ebs-csi"].arn
+  depends_on               = [aws_eks_node_group.main]
 }

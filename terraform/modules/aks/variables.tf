@@ -5,9 +5,8 @@ variable "resource_group_name" {
 }
 
 variable "kubernetes_version" {
-  description = "Kubernetes version for the AKS cluster"
+  description = "Kubernetes minor to pin the cluster to (e.g. \"1.35\"). Set per environment."
   type        = string
-  default     = "1.35"
 }
 
 variable "location" {
